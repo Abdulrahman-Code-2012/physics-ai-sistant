@@ -89,3 +89,4 @@ dialog form{display:grid;gap:14px}
 @keyframes rise{from{opacity:0;transform:translateY(8px)}}
 @media(max-width:760px){.hero{grid-template-columns:1fr;gap:40px;padding-top:44px}.steps{grid-template-columns:1fr;gap:24px}nav{gap:14px}nav a{font-size:14px}.sheet{transform:none}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.hist{margin-top:14px;padding:0}.hist summary{display:flex;gap:16px;align-items:baseline;padding:16px 20px;cursor:pointer;list-style:none}.hist summary strong{font:700 22px var(--serif)}.hist summary span{color:var(--red);font-weight:600}.hist summary em{margin-left:auto;color:#8a8676;font-style:normal;font-size:13px}.hist[open] summary{border-bottom:1px dashed var(--rule);margin-bottom:14px}.hist .fb{padding:0 20px}.hist .fb:last-child{margin-bottom:20px}#chats{margin-top:18px}
