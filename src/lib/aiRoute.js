@@ -1,4 +1,0 @@
-import { supabase } from "./supabase";
-async function callAiRoute(payload){const {data:{session}}=await supabase.auth.getSession();if(!session)throw new Error("sign_in_required");const {data,error}=await supabase.functions.invoke("ai-route",{body:payload,headers:{Authorization:`Bearer ${session.access_token}`}});if(error)throw error;if(data?.error)throw new Error(data.error);return data;}
-export function askTutor({question,imageUrl,audioUrl,audioMimeType,conversationHistory}){const modality=audioUrl?"audio":imageUrl?"image":"text";return callAiRoute({mode:"tutor",modality,question,imageUrl,audioUrl,audioMimeType,conversationHistory});}
-export function markAnswer({answerText,answerImageUrl,markSchemeUrl,markSchemeMimeType}){return callAiRoute({mode:"mark",modality:"image",answerText,answerImageUrl,markSchemeUrl,markSchemeMimeType});}

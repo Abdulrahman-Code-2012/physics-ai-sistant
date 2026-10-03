@@ -1,0 +1,37 @@
+import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import {SUPABASE_URL,SUPABASE_KEY} from './config.js';
+const sb=createClient(SUPABASE_URL,SUPABASE_KEY);
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const esc=t=>String(t??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+let user=null,photo=null,voice=null,rec=null,signup=false,history=[];
+const say=(el,t,bad=true)=>{el.textContent=t;el.className='msg '+(t?(bad?'bad':'ok'):'')};
+const nice=m=>/OPENROUTER_API_KEY_missing/.test(m)?'The AI key is not set up yet on the server.':/all_models_exhausted/.test(m)?'Every free model is busy right now. Try again in a minute.':/unauthorized|sign_in/.test(m)?'Please sign in again.':m;
+
+function route(){const h=(location.hash||'#home').slice(1),id=['home','ask','mark'].includes(h)?h:'home';$$('.view').forEach(e=>e.hidden=e.id!==id);$$('nav a').forEach(a=>a.classList.toggle('on',a.dataset.v===id));scrollTo(0,0)}
+addEventListener('hashchange',route);route();
+
+const dlg=$('#dlg');
+function openAuth(s=false){signup=s;$('#dTitle').textContent=s?'Create an account':'Sign in';$('#dGo').textContent=s?'Create account':'Sign in';$('#nameRow').hidden=!s;$('#dSwap').textContent=s?'Have an account? Sign in':'New here? Create an account';say($('#dMsg'),'');dlg.showModal()}
+$('#authBtn').onclick=()=>user?sb.auth.signOut():openAuth();
+$('#dSwap').onclick=()=>openAuth(!signup);
+$('#dClose').onclick=()=>dlg.close();
+$('#authForm').onsubmit=async e=>{e.preventDefault();const email=$('#em').value,password=$('#pw').value;$('#dGo').disabled=true;try{if(signup){const{error}=await sb.auth.signUp({email,password,options:{data:{full_name:$('#fn').value}}});if(error)throw error;say($('#dMsg'),'Account created. If asked, confirm your email, then sign in.',false)}else{const{error}=await sb.auth.signInWithPassword({email,password});if(error)throw error}}catch(x){say($('#dMsg'),x.message)}$('#dGo').disabled=false};
+sb.auth.onAuthStateChange((ev,s)=>{user=s?.user||null;$('#authBtn').textContent=user?'Sign out':'Sign in';if(user&&ev==='SIGNED_IN'){if(dlg.open)dlg.close();sb.from('profiles').upsert({id:user.id,email:user.email,full_name:user.user_metadata?.full_name||user.email,role:'student'},{onConflict:'id',ignoreDuplicates:true}).then(()=>{},()=>{})}});
+
+async function ai(body){const{data,error}=await sb.functions.invoke('ai-route',{body});if(error){let m=error.message;try{const j=await error.context.json();m=(j.error||'')+' '+(j.detail||'')}catch{}throw new Error(m)}if(data?.error)throw new Error(data.error+' '+(data.detail||''));return data}
+async function up(bucket,file,type){const path=user.id+'/'+Date.now()+'-'+(file.name||'voice').replace(/[^a-z0-9.]/gi,'_');const{error}=await sb.storage.from(bucket).upload(path,file,{contentType:type||file.type});if(error)throw error;const{data,error:e}=await sb.storage.from(bucket).createSignedUrl(path,900);if(e)throw e;return{url:data.signedUrl,path}}
+
+function chips(){const c=$('#chips');c.innerHTML='';[[photo,'📷 '+(photo?.name||''),()=>{photo=null}],[voice,'🎤 voice note',()=>{voice=null}]].forEach(([f,l,clr])=>{if(!f)return;const b=document.createElement('button');b.className='chip';b.textContent=l+'  ✕';b.onclick=()=>{clr();chips()};c.append(b)})}
+$('#pBtn').onclick=()=>$('#photo').click();
+$('#photo').onchange=e=>{photo=e.target.files[0]||null;chips()};
+$('#mic').onclick=async()=>{if(rec){rec.stop();return}try{const st=await navigator.mediaDevices.getUserMedia({audio:true}),mt=MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'audio/mp4',parts=[];rec=new MediaRecorder(st,{mimeType:mt});rec.ondataavailable=e=>parts.push(e.data);rec.onstop=()=>{st.getTracks().forEach(t=>t.stop());voice=new Blob(parts,{type:mt});rec=null;$('#mic').classList.remove('rec');chips()};rec.start();$('#mic').classList.add('rec')}catch{say($('#askMsg'),'Microphone not available. Check your browser permissions.')}};
+
+function bubble(role,text){$('.empty')?.remove();const d=document.createElement('div');d.className='b '+role;d.innerHTML='<small>'+(role==='user'?'You':'Tutor')+'</small>';const p=document.createElement('p');p.textContent=text;d.append(p);$('#thread').append(d);d.scrollIntoView({block:'nearest'});return d}
+async function ask(){if(!user)return openAuth();const q=$('#q').value.trim();if(!q&&!photo&&!voice)return;const btn=$('#send');btn.disabled=true;say($('#askMsg'),'');bubble('user',q||(voice?'🎤 voice note':'📷 photo'));const wait=bubble('bot','Thinking…');try{const body={mode:'tutor',modality:voice?'audio':photo?'image':'text',question:q||'Answer the question in the attached file.',conversationHistory:history.slice(-8)};if(photo)body.imageUrl=(await up('answer-uploads',photo)).url;if(voice){body.audioUrl=(await up('voice-notes',voice,voice.type)).url;body.audioMimeType=voice.type}const r=await ai(body);wait.querySelector('p').textContent=r.answer;wait.insertAdjacentHTML('beforeend',`<code>${esc(r.modelUsed)}</code>`);history.push({role:'user',content:q||'(attachment)'},{role:'assistant',content:r.answer});$('#q').value='';photo=voice=null;chips()}catch(x){wait.remove();say($('#askMsg'),nice(x.message))}btn.disabled=false}
+$('#send').onclick=ask;
+$('#q').onkeydown=e=>e.key==='Enter'&&ask();
+
+$('#ansImg').onchange=e=>{$('#ansLbl').textContent=e.target.files[0]?'✓ '+e.target.files[0].name:'＋ Attach photo of answer'};
+$('#scheme').onchange=e=>{$('#schLbl').textContent=e.target.files[0]?'✓ '+e.target.files[0].name:'＋ Upload mark scheme (PDF or image)'};
+function show(r){const x=r.result;if(!x){$('#result').innerHTML=`<div class='card'><p>Marked, but the reply was not in the expected format:</p><pre>${esc(r.raw)}</pre></div>`;return}$('#result').innerHTML=`<div class='card'><div class='score'><div><strong>${esc(x.marks_awarded)} / ${esc(x.marks_total)}</strong><span>Grade ${esc(x.grade)}</span></div><div class='pct'>${esc(x.percentage)}%</div></div>`+x.feedback.map(f=>`<div class='fb ${f.awarded?'y':'n'}'><b>${f.awarded?'✓':'✗'}</b><div><p>${esc(f.point)}</p><small>${esc(f.explanation)}</small></div></div>`).join('')+`<code>marked via ${esc(r.modelUsed)}</code></div>`}
+$('#go').onclick=async()=>{const m=$('#markMsg'),img=$('#ansImg').files[0],sch=$('#scheme').files[0],ans=$('#ans').value.trim();if(!user)return openAuth();if(!sch)return say(m,'A mark scheme is required alongside your answer.');if(!img&&!ans)return say(m,'Type your answer or attach a photo of it.');$('#go').disabled=true;say(m,'Marking… this can take up to a minute.',false);$('#result').innerHTML='';try{const a=img?await up('answer-uploads',img):null,s=await up('mark-schemes',sch);const r=await ai({mode:'mark',modality:'image',answerText:ans||undefined,answerImageUrl:a?.url,markSchemeUrl:s.url,markSchemeMimeType:sch.type});say(m,'');show(r);const x=r.result;if(x)sb.from('paper_checks').insert({student_id:user.id,question_text:ans||null,mark_scheme_url:s.path,marks_awarded:x.marks_awarded,marks_total:x.marks_total,percentage:x.percentage,grade:x.grade,feedback:x.feedback,model_used:r.modelUsed}).then(()=>{},()=>{})}catch(x){say(m,nice(x.message))}$('#go').disabled=false};

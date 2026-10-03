@@ -1,9 +1,8 @@
 # Physics AI-sistant
 
-IGCSE physics tutor and mark-scheme checker using React, Supabase and OpenRouter.
+IGCSE physics tutor and mark-scheme marker. Plain HTML, CSS and JavaScript: no build step.
 
-Features: text questions, real voice-note input, image questions, private uploads, persistent conversations, and answer marking against a required official mark scheme.
-
-Production setup: apply the Supabase migration in `supabase/migrations/20261003_production_security.sql`, deploy `supabase/functions/ai-route/index.ts` as `ai-route`, set the `OPENROUTER_API_KEY` secret, then deploy the Vite app with `npm run build` to `dist`.
-
-Student uploads use private Storage buckets and short-lived signed URLs. The Edge Function validates the Supabase JWT before calling OpenRouter.
+- `index.html`, `css/styles.css`, `js/app.js`, `js/config.js` make up the site (Netlify publishes the repo root, see `netlify.toml`).
+- Backend: Supabase project `rxsyzbkosjqndgsuhmzf` (auth, private storage, `ai-route` edge function).
+- `supabase/` holds the edge function and migrations. The `OPENROUTER_API_KEY` secret must be set on the project.
+- The key in `js/config.js` is the public publishable key; it is safe in the browser because RLS protects the data.
