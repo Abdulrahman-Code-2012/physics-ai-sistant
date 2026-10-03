@@ -3,6 +3,14 @@ import { SUPABASE_URL, SUPABASE_KEY, GUEST } from './config.js';
 
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 const app = document.querySelector('#app');
+async function ensureGuest(){
+  if(!GUEST)return;
+  const {data:{session}}=await sb.auth.getSession();
+  if(session?.user)return session.user;
+  const {data,error}=await sb.auth.signInAnonymously();
+  if(error)throw new Error('Guest session could not be created: '+error.message);
+  return data?.user||null;
+}
 const topics = [
   ['Forces and motion','Motion, forces, momentum and pressure'],
   ['Energy','Energy stores, transfers, work, power and efficiency'],
