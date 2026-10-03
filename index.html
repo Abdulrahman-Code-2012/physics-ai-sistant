@@ -1,31 +1,15 @@
 <!doctype html>
-<html lang='en'>
+<html lang="en">
 <head>
-<meta charset='utf-8'>
-<meta name='viewport' content='width=device-width,initial-scale=1'>
-<title>Physics AI-sistant · IGCSE physics tutor and marker</title>
-<meta name='description' content='Ask physics questions by text, voice or photo, and get your answers marked against the official mark scheme.'>
-<meta name='theme-color' content='#f5f3ed'>
-<link rel='preconnect' href='https://fonts.googleapis.com'>
-<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>
-<link href='https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,500;0,8..60,700;1,8..60,500&display=swap' rel='stylesheet'>
-<link rel='stylesheet' href='css/styles.css'>
-<script type='module' src='js/app.js'></script>
-<script type='module' src='js/extras.js'></script>
-<script type='module' src='js/modes.js'></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1220">
+<title>PhysicsIQ — IGCSE Physics</title>
+<meta name="description" content="PhysicsIQ IGCSE Physics practice workspace.">
+<link rel="stylesheet" href="css/styles.css">
+<script type="module" src="js/app.js"></script>
 </head>
 <body>
-<header class='top'><div class='wrap bar'><a class='brand' href='#home'><i>✓</i> Physics AI-sistant</a><nav><a href='#home' data-v='home'>Home</a><a href='#marks' data-v='marks'>My marks</a><a href='#teacher' data-v='teacher'>Teacher</a><button id='authBtn' class='btn sm'>Sign in</button></nav></div></header>
-<main>
-<section id='home' class='view wrap'><h1 class='h'>What do you want to do?</h1><div class='tiles'><a class='tile' href='#topic'><span>01</span><h3>Topic checker</h3><p>Pick a topic, upload your answers and the mark scheme, and see every mark.</p></a><a class='tile' href='#syllabus'><span>02</span><h3>Syllabus questions</h3><p>Ask anything. Answers come from your teacher's notes, slides and videos.</p></a><a class='tile' href='#paper'><span>03</span><h3>Full past paper checker</h3><p>Upload a whole paper and its mark scheme. Every question gets marked.</p></a><a class='tile' href='#ask'><span>04</span><h3>Ask the tutor</h3><p>Type, speak or snap a photo of any physics question.</p></a></div></section>
-<section id='ask' class='view wrap narrow' hidden><h2>Ask a question</h2><p class='sub'>Type it, record a voice note, or attach a photo.</p><div id='chats' class='chips'></div><div id='thread' class='thread'><p class='empty'>Try: why does a satellite in circular orbit keep a constant speed but a changing velocity?</p></div><div class='composer'><div id='chips' class='chips'></div><div class='row'><input id='q' placeholder='Ask your physics question…' autocomplete='off'><input id='photo' type='file' accept='image/png,image/jpeg' hidden><button id='pBtn' class='ic' title='Attach photo'>📷</button><button id='mic' class='ic' title='Record voice note'>🎤</button><button id='send' class='btn sm'>Ask</button></div></div><p id='askMsg' class='msg'></p></section>
-<section id='mark' class='view wrap narrow' hidden><h2 id='mTitle'></h2><p class='sub' id='mSub'></p><div class='card form'><label id='topicRow'>Topic<select id='topicSel'></select></label><label>Your answer<textarea id='ans' rows='5' placeholder='Type your working, or attach a photo below'></textarea></label><label class='file'><input id='ansImg' type='file' accept='image/png,image/jpeg' hidden><span id='ansLbl'>＋ Attach photo of answer</span></label><label class='file req'><input id='scheme' type='file' accept='application/pdf,image/png,image/jpeg' hidden><span id='schLbl'>＋ Upload mark scheme (PDF or image)</span><em>required</em></label><button id='go' class='btn'>Mark this</button><p id='markMsg' class='msg'></p></div><div id='result'></div></section>
-<section id='syllabus' class='view wrap narrow' hidden><h2>Syllabus questions</h2><p class='sub'>Pick a topic, then ask. Answers use the notes, slides and videos your teacher uploaded.</p><div class='card form'><label>Topic<select id='synSel'></select></label><label>Your question<textarea id='synQ' rows='3'></textarea></label><button id='synGo' class='btn'>Ask</button><p id='synMsg' class='msg'></p></div><div id='synOut'></div></section>
-<section id='teacher' class='view wrap narrow' hidden><h2>Teacher area</h2><div id='tGate' class='card form'></div><div id='tPanel' hidden><div class='card form'><label>Title<input id='tTitle'></label><label>Topic<select id='tUnit'></select></label><label class='file'><input id='tFile' type='file' accept='.pptx,.docx,.txt,.md' hidden><span id='tLbl'>＋ PowerPoint, Word or text notes</span></label><label>YouTube link (optional)<input id='tYt' placeholder='https://youtu.be/...'></label><label>Notes or video transcript (optional)<textarea id='tTxt' rows='4'></textarea></label><button id='tGo' class='btn'>Upload</button><p id='tMsg' class='msg'></p></div><h3 style='margin-top:28px'>Your materials</h3><div id='tList'></div></div></section>
-<section id='marks' class='view wrap narrow' hidden><h2>My marks</h2><div id='marksList'></div></section>
-</main>
-<footer class='wrap foot'>Physics AI-sistant · answers are AI-generated, so check them against your teacher’s guidance.</footer>
-<dialog id='dlg'><form id='authForm'><h3 id='dTitle'>Sign in</h3><label id='nameRow' hidden>Full name<input id='fn'></label><label>Email<input id='em' type='email' required></label><label>Password<input id='pw' type='password' minlength='6' required></label><p id='dMsg' class='msg'></p><button class='btn' id='dGo'>Sign in</button><button type='button' class='link' id='dSwap'>New here? Create an account</button><button type='button' class='link' id='dClose'>Cancel</button></form></dialog>
-<noscript><p class='wrap'>This site needs JavaScript to run.</p></noscript>
+<div id="app"></div>
 </body>
 </html>
