@@ -31,16 +31,29 @@ function renderAI(value){
   const math=[];
   function stash(tex,display){
     const id='@@MATH_'+math.length+'@@';
-    math.push({id:id,tex:tex.trim(),display:display});
+    math.push({tex:tex.trim(),display:display});
     return id;
   }
+  function extract(text,open,close,display){
+    let out='',i=0;
+    while(i<text.length){
+      const s=text.indexOf(open,i);
+      if(s<0){out+=text.slice(i);break;}
+      out+=text.slice(i,s);
+      const e=text.indexOf(close,s+open.length);
+      if(e<0){out+=text.slice(s);break;}
+      out+=stash(text.slice(s+open.length,e),display);
+      i=e+close.length;
+    }
+    return out;
+  }
   let text=source;
-  text=text.replace(/\\[([\\s\\S]*?)\\]/g,function(_,tex){return stash(tex,true)});
-  text=text.replace(/\\$\\$([\\s\\S]*?)\\$\\$/g,function(_,tex){return stash(tex,true)});
-  text=text.replace(/\\\\(([\\s\\S]*?)\\\\)/g,function(_,tex){return stash(tex,false)});
-  text=text.replace(/\\$([^$\\n]+?)\\$/g,function(_,tex){return stash(tex,false)});
+  text=extract(text,'\\[','\\]',true);
+  text=extract(text,'$$','$$',true);
+  text=extract(text,'\\(','\\)',false);
+  text=extract(text,'$','$',false);
   let html=marked.parse(text,{breaks:true});
-  html=html.replace(/@@MATH_(\\d+)@@/g,function(_,n){
+  html=html.replace(/@@MATH_(\d+)@@/g,function(_,n){
     const m=math[Number(n)];
     try{return katex.renderToString(m.tex,{displayMode:m.display,throwOnError:false})}
     catch(e){return '<code>'+escape(m.tex)+'</code>'}
