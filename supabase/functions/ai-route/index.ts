@@ -2,7 +2,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 const OPENROUTER_URL="https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_KEY=Deno.env.get("OPENROUTER_API_KEY");
 const SUPABASE_URL=Deno.env.get("SUPABASE_URL");
-const SERVICE_ROLE_KEY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const SERVICE_ROLE_KEY=(()=>{const legacy=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();if(legacy)return legacy;try{return JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")||"{}").default?.trim()||null}catch{return null}})();
 const CHAINS={text:["nvidia/nemotron-3-ultra-550b-a55b:free","qwen/qwen3.8-27b:free","nvidia/nemotron-3-super-120b-a12b:free","google/gemma-4-31b-it:free","poolside/laguna-s-2.1:free","inclusionai/ling-3.0-flash-sante:free","liquid/lfm-2.5-2.6b:free","cohere/north-mini-code:free","openrouter/free"],image:["qwen/qwen3.8-27b:free","google/gemma-4-31b-it:free","google/gemma-4-26b-a4b-it:free","nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free","thinkingmachines/inkling:free","thinkingmachines/inkling-small:free","openrouter/free"],audio:["nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free","thinkingmachines/inkling:free","thinkingmachines/inkling-small:free","openrouter/free"]};
 const RECENT_FAILURE_WINDOW_MIN=10;
 const SYSTEM_TUTOR="You are a precise IGCSE Physics tutor. Explain concepts clearly, show calculations with units, and do not invent information from an image or file. If something is unreadable, say exactly what is missing. Keep the answer student-friendly and focused.";
