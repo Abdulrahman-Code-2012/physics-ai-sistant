@@ -1,6 +1,1 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
-import App from "./App.jsx";
-import "./styles/global.css";
-ReactDOM.createRoot(document.getElementById("root")).render(<React.StrictMode><BrowserRouter><App/></BrowserRouter></React.StrictMode>);
+import React from 'react';import{createRoot}from'react-dom/client';import{BrowserRouter}from'react-router-dom';import App from'./App.jsx';import'./styles/global.css';class Boundary extends React.Component{state={error:null};static getDerivedStateFromError(error){return{error}}render(){return this.state.error?<div style={{padding:40,fontFamily:'system-ui'}}><h1>PhysicsIQ</h1><p>Startup error:</p><pre>{this.state.error.message}</pre></div>:this.props.children}}createRoot(document.getElementById('root')).render(<Boundary><BrowserRouter><App/></BrowserRouter></Boundary>);
