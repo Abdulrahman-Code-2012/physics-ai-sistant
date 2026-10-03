@@ -8,7 +8,7 @@ const topics=[
 ];
 let state={page:'home',topic:0,question:0,answer:'',result:null};
 
-function header(){return '<header class="topbar"><button class="brand" style="border:0;background:none;padding:0" data-page="home">Physics<span>IQ</span></button><div class="status"><i class="dot"></i> Physics workspace</div></header>'}
+function header(){return '<header class="topbar"><button class="brand" style="border:0;background:none;padding:0" data-page="home">Physics<span>IQ</span></button><div class="header-right"><div class="model-chip"><span class="model-dot"></span><span>PhysicsIQ AI</span><small>IGCSE Physics</small></div><div class="status"><i class="dot"></i> Workspace</div></div></header>'}
 function shell(content){app.innerHTML='<div class="shell">'+header()+content+'</div>';bind()}
 function home(){shell('<main class="wrap"><section class="hero"><div class="eyebrow">IGCSE Physics workspace</div><h1>Choose what you want to do.</h1><p>No clutter. Pick a Physics task and go straight into the work.</p></section><section class="choices"><button class="choice" data-page="topic"><span class="num">01</span><div class="icon">◈</div><h2>Full Classified Topic Checker</h2><p>Choose a topic and subtopic, practise questions, get AI checking and build topic progress.</p><span class="arrow">Open topic checker →</span></button><button class="choice" data-page="syllabus"><span class="num">02</span><div class="icon">⌁</div><h2>Syllabus Questions</h2><p>Ask questions by board, specification and topic, with syllabus-focused answers.</p><span class="arrow">Open syllabus questions →</span></button><button class="choice" data-page="papers"><span class="num">03</span><div class="icon">▤</div><h2>Full Past Papers Checker</h2><p>Work through complete papers and check answers against the official mark scheme.</p><span class="arrow">Open past papers →</span></button></section><div class="footer-note">Login and teacher tools can be added later without changing these three workspaces.</div></main>')}
 function top(title,sub){return '<main class="wrap"><div class="pagehead"><div><div class="eyebrow">PhysicsIQ</div><h1>'+title+'</h1><p class="hero p">'+sub+'</p></div><button class="back" data-page="home">← Dashboard</button></div>'}
@@ -21,9 +21,32 @@ function bind(){
 document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{state.page=b.dataset.page;render()});
 document.querySelectorAll('[data-topic]').forEach(b=>b.onclick=()=>{state.topic=+b.dataset.topic;state.result=null;render()});
 const ca=document.querySelector('#clearAnswer');if(ca)ca.onclick=()=>{state.answer='';state.result=null;render()};
-const ct=document.querySelector('#checkTopic');if(ct)ct.onclick=async()=>{const a=document.querySelector('#topicAnswer').value.trim();if(!a)return;ct.disabled=true;ct.textContent='Checking…';try{const r=await ai('IGCSE Physics topic: '+topics[state.topic][0]+'\nQuestion: A car increases its velocity from 8 m/s to 20 m/s in 4 seconds. Calculate its acceleration.\nStudent answer: '+a+'\nCheck the working, units and final answer. Give concise student-friendly feedback.');state.result='<strong>AI feedback</strong><p>'+escape(r.answer||r.result||JSON.stringify(r))+'</p>';state.answer=a}catch(e){state.result='<strong>Could not check yet</strong><p>'+escape(e.message)+'</p>'}render()};
-const as=document.querySelector('#askSyllabus');if(as)as.onclick=async()=>{const q=document.querySelector('#syQuestion').value.trim();if(!q)return;as.disabled=true;as.textContent='Thinking…';const out=document.querySelector('#syResult');try{const r=await ai('Answer as an IGCSE Physics tutor. Board: '+document.querySelector('#board').value+'. Specification: '+document.querySelector('#spec').value+'. Topic: '+document.querySelector('#syTopic').value+'. Academic boundary is the syllabus. Question: '+q);out.innerHTML='<strong>PhysicsIQ answer</strong><p>'+escape(r.answer||r.result||JSON.stringify(r))+'</p>'}catch(e){out.innerHTML='<strong>Could not answer yet</strong><p>'+escape(e.message)+'</p>'}as.disabled=false;as.textContent='Ask PhysicsIQ'};
+const ct=document.querySelector('#checkTopic');if(ct)ct.onclick=async()=>{const a=document.querySelector('#topicAnswer').value.trim();if(!a)return;ct.disabled=true;ct.textContent='Checking…';try{const r=await ai('IGCSE Physics topic: '+topics[state.topic][0]+'\nQuestion: A car increases its velocity from 8 m/s to 20 m/s in 4 seconds. Calculate its acceleration.\nStudent answer: '+a+'\nCheck the working, units and final answer. Give concise student-friendly feedback.');state.result='<div class="ai-result-head"><span class="ai-avatar">IQ</span><div><strong>PhysicsIQ AI</strong><small>Marking feedback</small></div></div><div class="ai-answer">'+renderAI(r.answer||r.result||JSON.stringify(r))+'</div>';state.answer=a}catch(e){state.result='<strong>Could not check yet</strong><p>'+escape(e.message)+'</p>'}render()};
+const as=document.querySelector('#askSyllabus');if(as)as.onclick=async()=>{const q=document.querySelector('#syQuestion').value.trim();if(!q)return;as.disabled=true;as.textContent='Thinking…';const out=document.querySelector('#syResult');try{const r=await ai('Answer as an IGCSE Physics tutor. Board: '+document.querySelector('#board').value+'. Specification: '+document.querySelector('#spec').value+'. Topic: '+document.querySelector('#syTopic').value+'. Academic boundary is the syllabus. Question: '+q);out.innerHTML='<div class="ai-result-head"><span class="ai-avatar">IQ</span><div><strong>PhysicsIQ AI</strong><small>IGCSE Physics tutor</small></div></div><div class="ai-answer">'+renderAI(r.answer||r.result||JSON.stringify(r))+'</div>'}catch(e){out.innerHTML='<strong>Could not answer yet</strong><p>'+escape(e.message)+'</p>'}as.disabled=false;as.textContent='Ask PhysicsIQ'};
 }
 function escape(v){return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('\n','<br>')}
+function renderAI(value){
+  const source=String(value??'').trim();
+  if(!source)return '';
+  const math=[];
+  function stash(tex,display){
+    const id='@@MATH_'+math.length+'@@';
+    math.push({id:id,tex:tex.trim(),display:display});
+    return id;
+  }
+  let text=source;
+  text=text.replace(/\\[([\\s\\S]*?)\\]/g,function(_,tex){return stash(tex,true)});
+  text=text.replace(/\\$\\$([\\s\\S]*?)\\$\\$/g,function(_,tex){return stash(tex,true)});
+  text=text.replace(/\\\\(([\\s\\S]*?)\\\\)/g,function(_,tex){return stash(tex,false)});
+  text=text.replace(/\\$([^$\\n]+?)\\$/g,function(_,tex){return stash(tex,false)});
+  let html=marked.parse(text,{breaks:true});
+  html=html.replace(/@@MATH_(\\d+)@@/g,function(_,n){
+    const m=math[Number(n)];
+    try{return katex.renderToString(m.tex,{displayMode:m.display,throwOnError:false})}
+    catch(e){return '<code>'+escape(m.tex)+'</code>'}
+  });
+  return DOMPurify.sanitize(html,{USE_PROFILES:{html:true}});
+}
+
 function render(){if(state.page==='home')home();if(state.page==='topic')topicPage();if(state.page==='syllabus')syllabusPage();if(state.page==='papers')papersPage()}
 ensureGuest().finally(render);
