@@ -66,11 +66,9 @@ function renderAI(value){
   }
   let text=source;
   text=extract(text,'\\[','\\]',true);
-  text=extract(text,'$','$',true);
+  text=extract(text,'$$','$$',true);
   text=extract(text,'\\(','\\)',false);
-  text=extract(text,'if(state.page==='home')home();if(state.page==='topic')topicPage();if(state.page==='syllabus')syllabusPage();if(state.page==='papers')papersPage()}
-ensureGuest().finally(render);,'if(state.page==='home')home();if(state.page==='topic')topicPage();if(state.page==='syllabus')syllabusPage();if(state.page==='papers')papersPage()}
-ensureGuest().finally(render);,false);
+  text=extract(text,'$','$',false);
   let html=marked.parse(text,{breaks:true});
   html=html.replace(/@@MATH_(\d+)@@/g,function(_,n){
     const m=math[Number(n)];
