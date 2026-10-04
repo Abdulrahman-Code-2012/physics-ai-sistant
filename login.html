@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1220">
+<title>PhysicsIQ — Sign in</title>
+<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/portal.css">
+<link rel="stylesheet" href="css/auth.css">
+</head>
+<body>
+<main class="portal-shell"><section class="portal-card auth-card">
+<div class="eyebrow">PhysicsIQ</div>
+<h1 id="title">Sign in</h1>
+<p class="muted" id="sub">Sign in to open your IGCSE Physics workspace.</p>
+<form id="form" novalidate>
+<label id="nameRow" hidden>Full name<input class="portal-input" id="name" autocomplete="name"></label>
+<label>Email<input class="portal-input" id="email" type="email" autocomplete="email" required></label>
+<label>Password<input class="portal-input" id="pw" type="password" autocomplete="current-password" minlength="6" required></label>
+<label id="codeRow" hidden>Teacher code (teachers only)<input class="portal-input" id="code" autocomplete="off"></label>
+<div id="msg" class="teacher-message" role="alert"></div>
+<button class="primary-btn" id="go" type="submit">Sign in</button>
+</form>
+<button class="link-btn" id="swap" type="button">New here? Create an account</button>
+</section></main>
+<script type="module" src="js/login.js"></script>
+</body>
+</html>
