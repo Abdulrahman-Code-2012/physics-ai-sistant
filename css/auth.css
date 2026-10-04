@@ -1,4 +1,4 @@
 .link-btn{background:none;border:0;color:inherit;opacity:.8;text-decoration:underline;cursor:pointer;margin-top:14px;font:inherit;padding:0}.link-btn:hover{opacity:1}
 [hidden]{display:none!important}
-.signout-fab{position:fixed;right:16px;bottom:16px;z-index:9999;padding:10px 16px;border-radius:12px;background:rgba(255,255,255,.1);color:inherit;border:1px solid rgba(255,255,255,.14);font:700 14px system-ui,sans-serif;cursor:pointer;backdrop-filter:blur(6px)}
+.signout-fab{position:fixed;right:18px;top:16px;z-index:9999;padding:10px 16px;border-radius:12px;background:rgba(255,255,255,.1);color:inherit;border:1px solid rgba(255,255,255,.14);font:700 14px system-ui,sans-serif;cursor:pointer;backdrop-filter:blur(6px)}
 .signout-fab:hover{background:rgba(255,255,255,.18)}
