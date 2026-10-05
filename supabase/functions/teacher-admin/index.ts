@@ -1,0 +1,13 @@
+import { createClient } from 'jsr:@supabase/supabase-js@2';
+const url=Deno.env.get('SUPABASE_URL')!;
+const secret=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SECRET_KEY')!;
+const anon=Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY')!;
+const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, apikey, content-type','Access-Control-Allow-Methods':'POST, OPTIONS'};
+const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...cors,'Content-Type':'application/json'}});
+async function teacher(req:Request){const a=req.headers.get('Authorization')||'';if(!a.startsWith('Bearer '))return null;const c=createClient(url,anon);const g=await c.auth.getUser(a.slice(7));if(g.error||!g.data.user)return null;const admin=createClient(url,secret);const p=await admin.from('profiles').select('id,role').eq('id',g.data.user.id).maybeSingle();return p.data?.role==='teacher'?admin:null;}
+Deno.serve(async req=>{if(req.method==='OPTIONS')return new Response(null,{headers:cors});try{const admin=await teacher(req);if(!admin)return json({error:'teacher_required'},403);const b=await req.json();const a=String(b.action||'');
+if(a==='list_students'){const r=await admin.from('profiles').select('id,username,email,full_name,role,created_at,banned').eq('role','student').order('username');if(r.error)throw r.error;return json({students:r.data||[]});}
+if(a==='set_banned'){const id=String(b.user_id||'');const banned=Boolean(b.banned);if(!id)return json({error:'user_id_required'},400);const r=await admin.from('profiles').update({banned}).eq('id',id).eq('role','student');if(r.error)throw r.error;if(banned)await admin.auth.admin.signOut(id,'global');return json({ok:true,banned});}
+if(a==='reset_password'){const id=String(b.user_id||'');const password=String(b.password||'');if(!id||password.length<6)return json({error:'user_id_and_password_required'},400);const r=await admin.auth.admin.updateUserById(id,{password});if(r.error)throw r.error;return json({ok:true});}
+if(a==='update_profile'){const id=String(b.user_id||'');const full_name=String(b.full_name||'').trim();const username=String(b.username||'').trim().toLowerCase();if(!id||!username)return json({error:'user_id_and_username_required'},400);const r=await admin.from('profiles').update({username,full_name:full_name||null}).eq('id',id).eq('role','student');if(r.error)throw r.error;await admin.auth.admin.updateUserById(id,{user_metadata:{username,full_name}});return json({ok:true});}
+return json({error:'unknown_action'},400);}catch(e){return json({error:e?.message||String(e)},500)}});
