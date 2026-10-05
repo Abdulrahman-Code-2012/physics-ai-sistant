@@ -1,225 +1,75 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
+import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import {SUPABASE_URL,SUPABASE_KEY} from './config.js';
+const sb=createClient(SUPABASE_URL,SUPABASE_KEY),root=document.querySelector('#teacherApp'),$=s=>document.querySelector(s);
+const TOPICS=['Motion','Forces and Newton laws','Work, energy and power','Pressure','Thermal physics','Waves, light and sound','Electricity','Magnetism and electromagnetism','Atomic and nuclear physics','Space physics'];
+const DROP='＋ Choose a PDF, PowerPoint, Word or text file';
+let user,profile;
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const say=(el,t,bad)=>{el.textContent=t;el.className='teacher-message'+(bad?' error':'')};
 
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
-const root = document.querySelector('#teacherApp');
-let user = null;
-let profile = null;
-
-function esc(value){
-  return String(value ?? '').replace(/[&<>"']/g, ch => ({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-  }[ch]));
+// Turn an uploaded file into plain text the AI can read.
+async function extractText(f){
+  const n=f.name.toLowerCase();
+  if(/\.(txt|md)$/.test(n))return f.text();
+  if(n.endsWith('.pdf')){
+    const mod=await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/+esm'),lib=mod.default||mod;
+    lib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    const doc=await lib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise;let out='';
+    for(let i=1;i<=doc.numPages;i++){const pg=await doc.getPage(i);out+=(await pg.getTextContent()).items.map(x=>x.str).join(' ')+'\n'}
+    return out;
+  }
+  const{default:JSZip}=await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm'),z=await JSZip.loadAsync(f),num=k=>parseInt(k.match(/\d+/g).pop());
+  const names=n.endsWith('.pptx')?Object.keys(z.files).filter(k=>/^ppt\/slides\/slide\d+\.xml$/.test(k)).sort((a,b)=>num(a)-num(b)):['word/document.xml'];
+  let out='';
+  for(const k of names){const x=await z.file(k).async('string');out+=x.replace(/<\/a:p>|<\/w:p>/g,'\n').replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')+'\n'}
+  return out;
 }
-function initials(value){
-  const parts = String(value || 'Teacher').trim().split(/\s+/).filter(Boolean);
-  return (parts.slice(0,2).map(p => p[0]).join('') || 'T').toUpperCase();
-}
-function formatDate(value){
-  if(!value) return '—';
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});
-}
-function pageShell(body){
-  const name = profile?.full_name || user?.email || 'Teacher';
-  root.innerHTML = `
-    <div class="teacher-app">
-      <aside class="teacher-sidebar" id="teacherSidebar">
-        <div class="teacher-brand">
-          <div class="teacher-brand-mark">P</div>
-          <div><strong>PhysicsIQ</strong><span>Teacher Portal</span></div>
-        </div>
-        <nav class="teacher-nav" aria-label="Teacher navigation">
-          <a href="#overview" class="active"><span class="teacher-nav-icon">⌂</span>Overview</a>
-          <a href="#classes"><span class="teacher-nav-icon">▦</span>Classes</a>
-          <a href="#assignments"><span class="teacher-nav-icon">✓</span>Assignments</a>
-          <a href="#materials"><span class="teacher-nav-icon">▤</span>Materials</a>
-        </nav>
-        <div class="teacher-sidebar-footer">
-          <div class="teacher-user-mini">
-            <div class="teacher-avatar">${esc(initials(name))}</div>
-            <div><strong>${esc(name)}</strong><span>Teacher account</span></div>
-          </div>
-          <button class="teacher-signout" id="logout">Sign out</button>
-        </div>
-      </aside>
 
-      <main class="teacher-main">
-        <header class="teacher-topbar">
-          <div style="display:flex;align-items:center;gap:10px">
-            <button class="teacher-mobile-menu" id="menuBtn" aria-label="Open menu">☰</button>
-            <div class="teacher-breadcrumb"><strong>Teacher Portal</strong> <span>/ Overview</span></div>
-          </div>
-          <div class="teacher-top-actions">
-            <a class="teacher-secondary-btn" href="index.html">Student workspace</a>
-          </div>
-        </header>
-
-        <div class="teacher-content">
-          ${body}
-        </div>
-      </main>
-    </div>`;
-
-  document.querySelector('#logout').onclick = async () => {
-    await sb.auth.signOut();
-    location.href = 'index.html';
+function render(){
+  root.innerHTML=`<div class="teacher-shell">
+<header class="teacher-top"><div><div class="eyebrow">PhysicsIQ</div><h1>Teacher Portal</h1><div class="muted">${esc(profile.full_name||user.email)}</div></div><button id="logout" class="ghost-btn">Sign out</button></header>
+<section class="teacher-card"><h2>Add to the AI knowledge base</h2><p class="muted">The AI uses everything you add here to answer students. Upload notes, slides or a PDF, or paste text. For a YouTube video, add the link and paste its transcript, because the AI learns from text and cannot watch videos.</p>
+<form id="kbForm" class="teacher-form">
+<div class="row2"><label>Title<input class="portal-input" name="title" required placeholder="e.g. Newton's laws summary"></label><label>Topic<select class="portal-input" name="unit">${TOPICS.map(t=>`<option>${esc(t)}</option>`).join('')}</select></label></div>
+<label class="drop"><input type="file" id="kbFile" accept=".pdf,.pptx,.docx,.txt,.md" hidden><span id="dropLbl">${DROP}</span></label>
+<label>YouTube link (optional)<input class="portal-input" name="yt" placeholder="https://youtu.be/..."></label>
+<label>Notes, or the video transcript<textarea class="portal-input" name="text" rows="5" placeholder="Paste text here"></textarea></label>
+<button class="primary-btn" type="submit">Add to knowledge base</button><div id="kbMsg" class="teacher-message"></div></form></section>
+<section class="teacher-card"><h2>Your knowledge base <span class="muted" id="kbCount"></span></h2><div id="kbList"></div></section></div>`;
+  $('#logout').onclick=async()=>{await sb.auth.signOut();location.href='login.html'};
+  $('#kbFile').onchange=e=>{$('#dropLbl').textContent=e.target.files[0]?'✓ '+e.target.files[0].name:DROP};
+  $('#kbForm').onsubmit=async e=>{
+    e.preventDefault();
+    const f=e.currentTarget,fd=new FormData(f),file=$('#kbFile').files[0],yt=(fd.get('yt')||'').trim(),txt=(fd.get('text')||'').trim(),m=$('#kbMsg'),btn=f.querySelector('button');
+    if(!file&&!txt)return say(m,'Add a file, or paste some notes or a transcript.',1);
+    if(yt&&!/^https?:\/\//.test(yt))return say(m,'The video link must start with https://',1);
+    btn.disabled=true;say(m,'Reading and adding...');
+    try{
+      const body=((file?await extractText(file):'')+'\n'+txt).trim();
+      if(!body)throw new Error('No readable text found in that file. A scanned PDF has no text, so type or paste it instead.');
+      const{error}=await sb.from('materials').insert({teacher_id:user.id,title:fd.get('title').trim(),type:'unit',unit_name:fd.get('unit'),file_name:file?.name||null,file_size:file?.size||null,file_url:yt||null,description:yt?'video':'notes',content_text:body.slice(0,80000)});
+      if(error)throw error;
+      f.reset();$('#dropLbl').textContent=DROP;say(m,'Added. The AI can now use this when answering students.');refresh();
+    }catch(x){say(m,x.message,1)}
+    btn.disabled=false;
   };
-  document.querySelector('#menuBtn').onclick = () => document.querySelector('#teacherSidebar').classList.toggle('open');
-  document.querySelectorAll('.teacher-nav a').forEach(a => a.addEventListener('click', () => {
-    document.querySelector('#teacherSidebar')?.classList.remove('open');
-    document.querySelectorAll('.teacher-nav a').forEach(x => x.classList.remove('active'));
-    a.classList.add('active');
-  }));
+  refresh();
 }
 
-function renderDashboard(classes, assignments, materials){
-  const name = profile?.full_name || user?.email || 'Teacher';
-  const classCount = classes?.length || 0;
-  const assignmentCount = assignments?.length || 0;
-  const materialCount = materials?.length || 0;
-  const boardCount = new Set((classes || []).map(c => c.board).filter(Boolean)).size;
-
-  pageShell(`
-    <section class="teacher-hero teacher-section-anchor" id="overview">
-      <div>
-        <div class="teacher-kicker">Teacher workspace</div>
-        <h1>Good to see you, ${esc(name.split(' ')[0])}.</h1>
-        <p>Manage your classes, assignments and PhysicsIQ resources from one place.</p>
-      </div>
-      <a class="teacher-primary-btn" href="#new-class">＋ Create class</a>
-    </section>
-
-    <section class="teacher-stats" aria-label="Teaching overview">
-      <article class="teacher-stat"><div class="teacher-stat-top"><span>Classes</span><span class="teacher-stat-icon">▦</span></div><div class="teacher-stat-value">${classCount}</div><div class="teacher-stat-note">Active classes you manage</div></article>
-      <article class="teacher-stat"><div class="teacher-stat-top"><span>Assignments</span><span class="teacher-stat-icon">✓</span></div><div class="teacher-stat-value">${assignmentCount}</div><div class="teacher-stat-note">Recent assignments</div></article>
-      <article class="teacher-stat"><div class="teacher-stat-top"><span>Materials</span><span class="teacher-stat-icon">▤</span></div><div class="teacher-stat-value">${materialCount}</div><div class="teacher-stat-note">Teaching resources</div></article>
-      <article class="teacher-stat"><div class="teacher-stat-top"><span>Boards</span><span class="teacher-stat-icon">◎</span></div><div class="teacher-stat-value">${boardCount}</div><div class="teacher-stat-note">Exam boards in your classes</div></article>
-    </section>
-
-    <div class="teacher-grid">
-      <section class="teacher-panel teacher-section-anchor" id="classes">
-        <div class="teacher-panel-head">
-          <div><h2>Your classes</h2><p>Quick view of the classes assigned to you.</p></div>
-          <a class="teacher-secondary-btn" href="#new-class">New class</a>
-        </div>
-        <div class="teacher-panel-body">
-          ${classCount ? `<div class="teacher-class-list">${classes.map(c => `
-            <div class="teacher-class-row">
-              <div><div class="teacher-class-name">${esc(c.name)}</div><div class="teacher-class-meta">${esc(c.subject || 'Physics')} · Created ${esc(formatDate(c.created_at))}</div></div>
-              <span class="teacher-pill blue">${esc(c.board || 'Board not set')}</span>
-              <span class="teacher-pill">${esc(c.specification || 'IGCSE')}</span>
-            </div>`).join('')}</div>` : `
-            <div class="teacher-empty"><strong>No classes yet</strong>Create your first class below to start organizing your teaching.</div>`}
-        </div>
-      </section>
-
-      <section class="teacher-panel teacher-section-anchor" id="assignments">
-        <div class="teacher-panel-head">
-          <div><h2>Recent assignments</h2><p>Latest tasks you've created.</p></div>
-        </div>
-        <div class="teacher-panel-body">
-          ${assignmentCount ? `<div class="teacher-list">${assignments.map(a => `
-            <div class="teacher-list-item"><div class="teacher-list-title">${esc(a.title)}</div><div class="teacher-list-meta">Due ${esc(formatDate(a.due_at))}</div></div>`).join('')}</div>` : `
-            <div class="teacher-empty"><strong>No assignments yet</strong>Your latest assignments will appear here.</div>`}
-        </div>
-      </section>
-    </div>
-
-    <section class="teacher-panel teacher-section teacher-section-anchor" id="new-class">
-      <div class="teacher-panel-head">
-        <div><h2>Create a class</h2><p>Add a class to your teaching workspace.</p></div>
-      </div>
-      <div class="teacher-panel-body">
-        <form id="classForm" class="teacher-create">
-          <input class="teacher-input" name="name" placeholder="Class name e.g. 10A" required>
-          <input class="teacher-input" name="board" placeholder="Exam board e.g. Cambridge IGCSE" required>
-          <button class="teacher-primary-btn" type="submit">Create class</button>
-        </form>
-        <div id="classMsg" class="teacher-message"></div>
-      </div>
-    </section>
-
-    <section class="teacher-panel teacher-section teacher-section-anchor" id="materials">
-      <div class="teacher-panel-head">
-        <div><h2>Your materials</h2><p>Resources connected to your teacher account.</p></div>
-      </div>
-      <div class="teacher-panel-body">
-        ${materialCount ? `<div class="teacher-material-grid">${materials.map(m => `
-          <div class="teacher-material"><strong>${esc(m.title)}</strong><span>${esc(m.type || 'Material')} · ${esc(m.unit_name || 'General')}</span></div>`).join('')}</div>` : `
-          <div class="teacher-empty"><strong>No materials yet</strong>Teacher resources will appear here when added.</div>`}
-      </div>
-    </section>
-  `);
-
-  document.querySelector('#classForm').onsubmit = createClass;
-}
-
-async function createClass(event){
-  event.preventDefault();
-  const msg = document.querySelector('#classMsg');
-  const form = event.currentTarget;
-  msg.className = 'teacher-message';
-  msg.textContent = 'Creating class…';
-
-  const formData = new FormData(form);
-  const { error } = await sb.from('classes').insert({
-    teacher_id:user.id,
-    name:String(formData.get('name') || '').trim(),
-    board:String(formData.get('board') || '').trim(),
-    subject:'Physics'
-  });
-
-  if(error){
-    msg.className = 'teacher-message error';
-    msg.textContent = error.message;
-    return;
-  }
-
-  msg.className = 'teacher-message ok';
-  msg.textContent = 'Class created successfully.';
-  form.reset();
-  await load();
-}
-
-async function load(){
-  const results = await Promise.all([
-    sb.from('classes').select('id,name,subject,board,specification,created_at').eq('teacher_id',user.id).order('created_at',{ascending:false}),
-    sb.from('assignments').select('id,title,due_at,class_id,created_at').eq('teacher_id',user.id).order('created_at',{ascending:false}).limit(8),
-    sb.from('materials').select('id,title,type,unit_name,created_at').eq('teacher_id',user.id).order('created_at',{ascending:false}).limit(9)
-  ]);
-
-  const [classResult, assignmentResult, materialResult] = results;
-  if(classResult.error || assignmentResult.error || materialResult.error){
-    throw new Error((classResult.error || assignmentResult.error || materialResult.error).message);
-  }
-  renderDashboard(classResult.data || [], assignmentResult.data || [], materialResult.data || []);
+async function refresh(){
+  const{data,error}=await sb.from('materials').select('id,title,unit_name,file_name,file_url,created_at').eq('teacher_id',user.id).order('created_at',{ascending:false});
+  if(error){$('#kbList').textContent=error.message;return}
+  $('#kbCount').textContent='· '+data.length;
+  $('#kbList').innerHTML=data.length?data.map(r=>`<div class="mat"><div><b>${esc(r.title)}</b><div class="muted">${esc(r.unit_name||'')}${r.file_name?' · '+esc(r.file_name):''}${r.file_url?' · <a href="'+esc(r.file_url)+'" target="_blank" rel="noopener">video</a>':''}</div></div><button class="ghost-btn" data-id="${esc(r.id)}">Delete</button></div>`).join(''):'<p class="muted">Nothing added yet. Add your first material above.</p>';
+  $('#kbList').querySelectorAll('button').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this material from the knowledge base?'))return;await sb.from('materials').delete().eq('id',b.dataset.id);refresh()});
 }
 
 async function start(){
-  root.innerHTML = '<div class="teacher-loading">Loading your teacher workspace…</div>';
-  const {data:{session}} = await sb.auth.getSession();
-
-  if(!session?.user){
-    location.href = 'index.html';
-    return;
-  }
-
-  user = session.user;
-  const {data,error} = await sb.from('profiles').select('role,full_name,email').eq('id',user.id).maybeSingle();
-
-  if(error || !data || data.role !== 'teacher'){
-    await sb.auth.signOut();
-    root.innerHTML = `<div class="teacher-error"><h1>Teacher access required</h1><p>This page is restricted to teacher accounts.</p><a class="teacher-primary-btn" href="index.html">Back to PhysicsIQ</a></div>`;
-    return;
-  }
-
-  profile = data;
-  try{
-    await load();
-  }catch(error){
-    root.innerHTML = `<div class="teacher-error"><h1>Could not load the teacher portal</h1><p>${esc(error.message)}</p><a class="teacher-primary-btn" href="index.html">Back to PhysicsIQ</a></div>`;
-  }
+  const{data:{session}}=await sb.auth.getSession();
+  if(!session?.user||session.user.is_anonymous){location.href='login.html';return}
+  user=session.user;
+  const{data,error}=await sb.from('profiles').select('role,full_name,email').eq('id',user.id).maybeSingle();
+  if(error||!data||data.role!=='teacher'){await sb.auth.signOut();location.href='login.html';return}
+  profile=data;render();
 }
-
 start();
