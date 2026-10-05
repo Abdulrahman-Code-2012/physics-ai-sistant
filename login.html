@@ -1,29 +1,34 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0b1220">
-<title>PhysicsIQ — Sign in</title>
-<link rel="stylesheet" href="css/styles.css">
-<link rel="stylesheet" href="css/portal.css">
-<link rel="stylesheet" href="css/auth.css">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#07111f"><title>PhysicsIQ — Sign in</title>
+  <link rel="stylesheet" href="css/styles.css"><link rel="stylesheet" href="css/portal.css"><link rel="stylesheet" href="css/auth.css">
 </head>
-<body>
-<main class="portal-shell"><section class="portal-card auth-card">
-<div class="brand">Physics<span>IQ</span></div>
-<h1 id="title">Sign in</h1>
-<p class="muted" id="sub">Sign in to open your IGCSE Physics workspace.</p>
-<form id="form" novalidate>
-<label id="nameRow" hidden>Full name<input class="portal-input" id="name" autocomplete="name"></label>
-<label>Email<input class="portal-input" id="email" type="email" autocomplete="email" required></label>
-<label>Password<input class="portal-input" id="pw" type="password" autocomplete="current-password" minlength="6" required></label>
-<label id="codeRow" hidden>Teacher code (teachers only)<input class="portal-input" id="code" autocomplete="off"></label>
-<div id="msg" class="teacher-message" role="alert"></div>
-<button class="primary-btn" id="go" type="submit">Sign in</button>
-</form>
-<button class="link-btn" id="swap" type="button">New here? Create an account</button>
-</section></main>
-<script type="module" src="js/login.js"></script>
+<body class="auth-page">
+  <main class="auth-layout">
+    <section class="auth-showcase">
+      <div class="showcase-brand"><div class="brand-mark">P</div><b>PhysicsIQ</b></div>
+      <div class="showcase-copy"><span class="eyebrow">IGCSE PHYSICS</span><h1>A smarter place to learn physics.</h1><p>Ask questions, work through exam problems, and learn from the materials your teacher has approved.</p></div>
+      <div class="showcase-points"><div><b>01</b><span>AI tutor</span></div><div><b>02</b><span>Teacher knowledge</span></div><div><b>03</b><span>Exam-focused help</span></div></div>
+    </section>
+    <section class="auth-panel">
+      <div class="auth-card">
+        <div class="mobile-brand"><div class="brand-mark">P</div><b>PhysicsIQ</b></div>
+        <div class="auth-heading"><span class="eyebrow">WELCOME BACK</span><h1 id="title">Sign in</h1><p id="sub">Sign in to open your IGCSE Physics workspace.</p></div>
+        <form id="form" novalidate>
+          <label id="nameRow" hidden>Full name<input class="portal-input" id="name" autocomplete="name" placeholder="Your name"></label>
+          <label>Email<input class="portal-input" id="email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
+          <label>Password<input class="portal-input" id="pw" type="password" autocomplete="current-password" minlength="6" required placeholder="••••••••"></label>
+          <label id="codeRow" hidden>Teacher code<input class="portal-input" id="code" autocomplete="off" placeholder="Teacher invitation code"></label>
+          <div id="msg" class="teacher-message" role="alert"></div>
+          <button class="primary-btn auth-submit" id="go" type="submit">Sign in</button>
+        </form>
+        <button class="link-btn" id="swap" type="button">New here? Create an account</button>
+        <p class="auth-note">Teachers can register with an invitation code. Students can create a standard account.</p>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="js/login.js"></script>
 </body>
 </html>
