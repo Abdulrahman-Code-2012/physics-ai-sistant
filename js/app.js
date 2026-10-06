@@ -1,9 +1,12 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { SUPABASE_URL, SUPABASE_KEY, GUEST } from './config.js';
-import { renderLearningLab, initLearningLabs } from './interactive-lab.js';
 
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 const app = document.querySelector('#app');
+function renderLearningLab({topic='Physics',source='ai-response'}={}){
+  const params=new URLSearchParams({topic:String(topic||'Physics'),source:String(source||'ai-response')});
+  return '<section class="interactive-learning-lab-frame"><iframe class="interactive-learning-lab-iframe" src="./interactive-lab.html?'+params.toString()+'" title="Interactive Physics Lab" loading="lazy"></iframe></section>';
+}
 async function ensureGuest(){
   if(!GUEST)return;
   const {data:{session}}=await sb.auth.getSession();
@@ -68,4 +71,4 @@ function escape(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':
 function fileStatus(id,file){const el=document.getElementById(id);if(!el)return;el.textContent=file?'â '+file.name+' ('+Math.max(1,Math.round(file.size/1024))+' KB)':'No file selected.'}
 function aiCard(title,body){return '<div class="ai-result-head"><span class="ai-avatar">AI</span><div><strong>'+escape(title)+'</strong><small>Physics AI-sistant</small></div></div><div class="ai-answer">'+renderAI(String(body||''))+'</div>'}
 function render(){if(state.page==='home')home();if(state.page==='topic')topicPage();if(state.page==='syllabus')syllabusPage();if(state.page==='papers')papersPage();if(state.page==='lab')labPage();document.querySelectorAll('[data-sim-formula]').forEach(el=>el.oninput=()=>{const value=el.parentElement.querySelector('.sim-value');const min=Number(el.min),max=Number(el.max);if(value)value.textContent=el.value+' '+(value.textContent.split(' ').slice(1).join(' '));const bar=el.parentElement.querySelector('.sim-track i');if(bar)bar.style.width=((Number(el.value)-min)/Math.max(1,max-min)*100)+'%'})}
-ensureGuest().finally(()=>{render();initLearningLabs();});
+ensureGuest().finally(()=>{render();});
