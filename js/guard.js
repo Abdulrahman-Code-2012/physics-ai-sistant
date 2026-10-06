@@ -5,7 +5,7 @@ if(!u){
 }else{
   settle();
   sb.auth.onAuthStateChange(e=>{if(e==='SIGNED_OUT')location.replace('login.html')});
-  await import('./app.js');
+  await import('./app.js?v=20261006-2');
   // Put "Sign out" in the workspace's top bar. The app re-renders its bar on each page, so re-add it when needed.
   const app=document.getElementById('app');
   const inject=()=>{const s=document.querySelector('.status');if(s&&!s.querySelector('.signout-btn')){const b=document.createElement('button');b.className='signout-btn';b.type='button';b.textContent='Sign out';b.onclick=signOut;s.append(b)}};
