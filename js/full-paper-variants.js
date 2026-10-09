@@ -1,34 +1,14 @@
 (() => {
-  const addVariants = () => {
-    document.querySelectorAll('select').forEach(select => {
-      const options = [...select.options];
-      const v1 = options.find(o => /\bvariant\s*1\b/i.test(o.textContent || ''));
-      if (!v1) return;
-
-      const context = [
-        select.id,
-        select.name,
-        select.getAttribute('aria-label'),
-        select.closest('label, .card, .panel, section, form, div')?.innerText || ''
-      ].join(' ');
-      if (!/full\s*paper/i.test(context) && !/variant/i.test(context)) return;
-
-      const valueFor = n => {
-        const base = String(v1.value ?? '1');
-        if (/^[46]1$/.test(base)) return base.slice(0, -1) + n;
-        if (/^\d+$/.test(base)) return base === '1' ? String(n) : base.replace(/1$/, String(n));
-        return String(n);
-      };
-
-      [2, 3].forEach(n => {
-        const exists = [...select.options].some(o =>
-          new RegExp('\\bvariant\\s*' + n + '\\b', 'i').test(o.textContent || '')
-        );
-        if (!exists) select.add(new Option('Variant ' + n, valueFor(n)));
-      });
-    });
+  const syncVariants = () => {
+    const select = document.querySelector('#paperVariant');
+    const paper = document.querySelector('#paperType')?.value || '4';
+    if (!select) return;
+    const variants = paper === '6' ? ['61','62','63'] : ['41','42','43'];
+    const current = select.value;
+    select.innerHTML = variants.map(v => '<option value="' + v + '">Variant ' + v.slice(1) + '</option>').join('');
+    if (variants.includes(current)) select.value = current;
   };
-
-  addVariants();
-  new MutationObserver(addVariants).observe(document.documentElement, { childList: true, subtree: true });
+  syncVariants();
+  new MutationObserver(syncVariants).observe(document.documentElement, { childList: true, subtree: true });
+  document.addEventListener('change', e => { if (e.target?.id === 'paperType') syncVariants(); });
 })();
