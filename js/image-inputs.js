@@ -47,7 +47,7 @@ function addPhoto(input, file) {
   const current = Array.from(input.files || []);
   const count = Number(input.dataset.sourceCount || current.length || 0);
   if (count >= MAX_PHOTOS) {
-    setStatus(input, 'Maximum ' + MAX_PHOTOS + ' photos per question. Remove the current selection to start again.');
+    setStatus(input, 'Maximum ' + MAX_PHOTOS + ' photos per question. Clear the selection to start again.');
     return;
   }
   const safeName = file.name || ('physics-question-' + (count + 1) + '.png');
@@ -60,7 +60,7 @@ function addPhoto(input, file) {
   setStatus(input, '✓ ' + input.dataset.sourceCount + ' photo' + (Number(input.dataset.sourceCount) === 1 ? '' : 's') + ' attached');
   if (current.length > 1) combinePhotos(input, current).catch(error => {
     console.error('Could not combine question photos:', error);
-    setStatus(input, 'Photos selected, but combining failed. Please upload fewer/smaller photos.');
+    setStatus(input, 'Photos selected, but combining failed. Please try fewer/smaller photos.');
   });
 }
 
@@ -77,6 +77,11 @@ function loadImage(file) {
 async function combinePhotos(input, files) {
   if (input.dataset.combining === '1') return;
   input.dataset.combining = '1';
+  const photoCount = Number(input.dataset.sourceCount || files.length);
+  const askButton = document.querySelector('#askSyllabus');
+  const askWasDisabled = askButton?.disabled || false;
+  if (askButton) askButton.disabled = true;
+  setStatus(input, 'Preparing ' + photoCount + ' photos…');
   try {
     const images = await Promise.all(files.map(loadImage));
     const maxWidth = 1600;
@@ -105,13 +110,14 @@ async function combinePhotos(input, files) {
       y += item.height;
     });
     const blob = await new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Image processing failed.')), 'image/jpeg', 0.88));
-    const combined = new File([blob], 'physics-question-' + files.length + '-photos.jpg', { type: 'image/jpeg', lastModified: Date.now() });
+    const combined = new File([blob], 'physics-question-' + photoCount + '-photos.jpg', { type: 'image/jpeg', lastModified: Date.now() });
     input.dataset.internalChange = '1';
     setInputFiles(input, [combined]);
     input.dispatchEvent(new Event('change', { bubbles: true }));
-    setStatus(input, '✓ ' + files.length + ' photos attached together — ready to ask Gemini');
+    setStatus(input, '✓ ' + photoCount + ' photos attached together — ready to ask Gemini');
   } finally {
     input.dataset.combining = '0';
+    if (askButton) askButton.disabled = askWasDisabled;
   }
 }
 
@@ -128,7 +134,11 @@ function enhanceImageInput() {
       input.dataset.internalChange = '0';
       return;
     }
-    const files = Array.from(input.files || []);
+    let files = Array.from(input.files || []);
+    if (files.length > MAX_PHOTOS) {
+      files = files.slice(0, MAX_PHOTOS);
+      setInputFiles(input, files);
+    }
     if (!files.length) {
       input.dataset.sourceCount = '0';
       setStatus(input, 'No image selected.');
