@@ -68,5 +68,6 @@ function renderPhysicsVisual(v){const type=String(v?.type||'').toLowerCase();con
 function escape(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function fileStatus(id,file){const el=document.getElementById(id);if(!el)return;el.textContent=file?'✓ '+file.name+' ('+Math.max(1,Math.round(file.size/1024))+' KB)':'No file selected.'}
 function aiCard(title,body){return '<div class="ai-result-head"><span class="ai-avatar">AI</span><div><strong>'+escape(title)+'</strong><small>Physics AI-sistant</small></div></div><div class="ai-answer">'+renderAI(String(body||''))+'</div>'}
+}
 function render(){if(state.page==='home')home();if(state.page==='topic')topicPage();if(state.page==='syllabus')syllabusPage();if(state.page==='history')historyPage();if(state.page==='papers')papersPage();document.querySelectorAll('[data-sim-formula]').forEach(el=>el.oninput=()=>{const value=el.parentElement.querySelector('.sim-value');const min=Number(el.min),max=Number(el.max);if(value)value.textContent=el.value+' '+(value.textContent.split(' ').slice(1).join(' '));const bar=el.parentElement.querySelector('.sim-track i');if(bar)bar.style.width=((Number(el.value)-min)/Math.max(1,max-min)*100)+'%'})}
 ensureGuest().finally(()=>{render();});
