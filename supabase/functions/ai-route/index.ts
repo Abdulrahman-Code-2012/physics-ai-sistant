@@ -1,6 +1,9 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const OPENROUTER_KEY = Deno.env.get("OPENROUTER_API_KEY");
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+const NVIDIA_API_KEY = Deno.env.get("NVIDIA_API_KEY");
+const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? (() => { try { return JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}").default ?? null; } catch { return null; } })();
 
@@ -91,10 +94,94 @@ async function callOpenRouter(body: Record<string,unknown>, mode: string, hasIma
   throw new Error("The OpenRouter free-model router failed; no paid provider was tried. "+errors.join(" | "));
 }
 
-// Free-only provider routing: never call Gemini or Groq.
+// Gemini is the primary multimodal provider. NVIDIA and xAI are secondary
+// OpenAI-compatible providers; OpenRouter remains the final compatibility fallback.
+function requestParts(body: Record<string,unknown>, mode: string) {
+  const req = body as {question?:string,conversationHistory?:{role:string,content:string}[],answerText?:string,imageUrl?:string,pdfUrl?:string,audioUrl?:string,answerImageUrl?:string,answerPdfUrl?:string,markSchemeUrl?:string,markSchemeMimeType?:string};
+  const system = mode === "mark" ? SYSTEM_MARKER : mode === "recheck" ? SYSTEM_RECHECK : SYSTEM_TUTOR;
+  const history = mode === "tutor" ? (req.conversationHistory || []).map(m => ({role:m.role === "assistant" ? "assistant" : "user", content:m.content})) : [];
+  const userText = mode === "mark"
+    ? ("Mark the student's work against the official mark scheme only. Student typed answer: " + (req.answerText || "(see attached answer file)") + ". Compare the answer with the supplied official mark scheme. Return the required JSON only.")
+    : (req.question || "");
+  return {req, system, history, userText};
+}
+
+async function callGemini(body: Record<string,unknown>, mode: string) {
+  if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
+  const {req,system,history,userText} = requestParts(body,mode);
+  const parts:Record<string,unknown>[] = [];
+  if (userText) parts.push({text:userText});
+  async function addFile(url:string|undefined, filename:string, mimeOverride?:string) {
+    if (!url) return;
+    const f=await fetchBase64(url); const mime=mimeOverride || f.mime;
+    if (mime === "application/pdf" || mime.startsWith("image/")) parts.push({inlineData:{mimeType:mime,data:f.b64}});
+    else parts.push({text:`[Attachment ${filename} has unsupported media type ${mime}]`});
+  }
+  if (mode === "mark" || mode === "recheck") {
+    await addFile(req.answerPdfUrl,"student-submission.pdf","application/pdf");
+    await addFile(req.answerImageUrl,"student-answer-image");
+    await addFile(req.markSchemeUrl,"official-mark-scheme.pdf",req.markSchemeMimeType || "application/pdf");
+  } else {
+    await addFile(req.imageUrl,"student-question-image");
+    await addFile(req.pdfUrl,"student-question.pdf","application/pdf");
+  }
+  const contents = [...history.map(m=>({role:m.role === "assistant" ? "model" : "user",parts:[{text:m.content}]})),{role:"user",parts}];
+  const payload:Record<string,unknown>={systemInstruction:{parts:[{text:system}]},contents,generationConfig:{temperature:mode === "mark" || mode === "recheck" ? 0.1 : 0.4,maxOutputTokens:mode === "mark" ? 8192 : mode === "recheck" ? 4096 : 4096}};
+  if (mode === "mark" || mode === "recheck") (payload.generationConfig as Record<string,unknown>).responseMimeType="application/json";
+  const model=Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
+  const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload),signal:AbortSignal.timeout(mode === "mark" ? 60000 : mode === "recheck" ? 25000 : 40000)});
+  if (!res.ok) throw new Error(`Gemini HTTP ${res.status}: ${(await res.text()).slice(0,300)}`);
+  const data=await res.json();
+  const text=(data?.candidates?.[0]?.content?.parts||[]).map((p:Record<string,unknown>)=>String(p.text||"")).join("\n").trim();
+  if (!text) throw new Error("Gemini returned an empty response (finishReason="+String(data?.candidates?.[0]?.finishReason||"unknown")+")");
+  return {text,modelUsed:`gemini/${model}`};
+}
+
+async function callNvidiaOrGrok(body: Record<string,unknown>, mode: string, provider: "nvidia"|"grok") {
+  const key=provider === "nvidia" ? NVIDIA_API_KEY : XAI_API_KEY;
+  if (!key) throw new Error((provider === "nvidia" ? "NVIDIA_API_KEY" : "XAI_API_KEY")+" not configured");
+  const {req,system,history,userText}=requestParts(body,mode);
+  const hasPdf=!!(req.pdfUrl || req.answerPdfUrl || req.markSchemeUrl);
+  if (hasPdf) throw new Error(provider+" direct chat route cannot safely parse attached PDFs; use Gemini or OpenRouter's PDF parser");
+  const parts:Record<string,unknown>[]=[];
+  if (userText) parts.push({type:"text",text:userText});
+  async function addImage(url:string|undefined,name:string) {
+    if (!url) return;
+    const f=await fetchBase64(url);
+    if (!f.mime.startsWith("image/")) { parts.push({type:"text",text:`[${name} has unsupported media type ${f.mime}]`}); return; }
+    parts.push({type:"image_url",image_url:{url:`data:${f.mime};base64,${f.b64}`}});
+  }
+  await addImage(mode === "mark" || mode === "recheck" ? req.answerImageUrl : req.imageUrl,"attached image");
+  const content:unknown=parts.length === 1 && parts[0].type === "text" ? parts[0].text : parts;
+  const messages=[{role:"system",content:system},...history,{role:"user",content}];
+  const model=provider === "nvidia"
+    ? (hasImage ? (Deno.env.get("NVIDIA_VISION_MODEL") || "nvidia/nemotron-nano-12b-v2-vl") : (Deno.env.get("NVIDIA_MODEL") || "nvidia/nemotron-3-nano-30b-a3b"))
+    : (Deno.env.get("XAI_MODEL") || "grok-3-mini");
+  const endpoint=provider === "nvidia" ? "https://integrate.api.nvidia.com/v1/chat/completions" : "https://api.x.ai/v1/chat/completions";
+  const payload:Record<string,unknown>={model,messages,temperature:mode === "mark" || mode === "recheck" ? 0.1 : 0.4,max_tokens:mode === "mark" ? 8192 : mode === "recheck" ? 4096 : 4096};
+  if (mode === "mark" || mode === "recheck") payload.response_format={type:"json_object"};
+  const res=await fetch(endpoint,{method:"POST",headers:{Authorization:"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify(payload),signal:AbortSignal.timeout(mode === "mark" ? 60000 : mode === "recheck" ? 25000 : 40000)});
+  if (!res.ok) throw new Error(`${provider} HTTP ${res.status}: ${(await res.text()).slice(0,300)}`);
+  const data=await res.json(); const raw=data?.choices?.[0]?.message?.content;
+  const text=typeof raw === "string" ? raw : Array.isArray(raw) ? raw.map((x:Record<string,unknown>)=>String(x.text||"")).join("\n") : "";
+  if (!text.trim()) throw new Error(provider+" returned an empty response");
+  return {text:text.trim(),modelUsed:`${provider}/${String(data?.model||model)}`};
+}
+
 async function route(body: Record<string,unknown>, mode: string) {
-  const hasImage = !!(body.imageUrl || body.answerImageUrl);
-  return await callOpenRouter(body, mode, hasImage);
+  const hasPdf=!!(body.pdfUrl || body.answerPdfUrl || body.markSchemeUrl);
+  const attempts:Array<[string,()=>Promise<{text:string,modelUsed:string}>]> = [];
+  if (GEMINI_API_KEY) attempts.push(["Gemini",()=>callGemini(body,mode)]);
+  if (!hasPdf && NVIDIA_API_KEY) attempts.push(["NVIDIA",()=>callNvidiaOrGrok(body,mode,"nvidia")]);
+  if (!hasPdf && XAI_API_KEY) attempts.push(["Grok",()=>callNvidiaOrGrok(body,mode,"grok")]);
+  if (OPENROUTER_KEY) attempts.push(["OpenRouter",()=>callOpenRouter(body,mode,!!(body.imageUrl || body.answerImageUrl))]);
+  if (!attempts.length) throw new Error("No AI provider key is configured. Add GEMINI_API_KEY, NVIDIA_API_KEY, XAI_API_KEY, or OPENROUTER_API_KEY in Supabase Edge Function secrets.");
+  const errors:string[]=[];
+  for (const [name,call] of attempts) {
+    try { return await call(); }
+    catch (e) { const message=String((e as Error)?.message||e); errors.push(name+": "+message.slice(0,220)); }
+  }
+  throw new Error("All configured AI providers failed: "+errors.join(" | "));
 }
 
 async function callOpenRouterRecheck(body: Record<string,unknown>, primaryResult: Record<string,unknown>) {
@@ -107,7 +194,7 @@ async function callOpenRouterRecheck(body: Record<string,unknown>, primaryResult
     markSchemeMimeType:body.markSchemeMimeType
   };
   const hasImage=!!body.answerImageUrl;
-  const response=await callOpenRouter(auditBody,"recheck",hasImage);
+  const response=await route(auditBody,"recheck");
   try {
     const cleaned=response.text.trim().replace(/^\x60\x60\x60(?:json)?\s*/i,"").replace(/\s*\x60\x60\x60$/i,"");
     const a=cleaned.indexOf("{"),b=cleaned.lastIndexOf("}");
@@ -157,9 +244,9 @@ Deno.serve(async (req) => {
         const parsed = parseMark(text);
         if (!parsed) return json({ error: "invalid_marker_response", rawPreview: text.slice(0, 600), modelUsed }, 502);
         await admin.from("paper_checks").insert({ student_id: user.id, marks_awarded: parsed.marks_awarded, marks_total: parsed.marks_total, percentage: parsed.percentage, grade: parsed.grade || null, feedback: parsed.feedback, model_used: modelUsed, mark_scheme_url: String(body.markSchemeUrl || "") }).catch(() => {});
-        let secondReview:Record<string,unknown> = {status:"unavailable",model:"openrouter/free",summary:"Second review unavailable.",disagreements:[]};
-        try { secondReview = await callOpenRouterRecheck(body, parsed as unknown as Record<string,unknown>); log(admin, String(secondReview.model || "openrouter/free"), "mark_recheck", String(secondReview.status || "error")); }
-        catch (reviewError) { secondReview = {status:"unavailable",model:"openrouter/free",summary:String((reviewError as Error)?.message || reviewError).slice(0,700),disagreements:[]}; log(admin,"openrouter/free","mark_recheck","error"); }
+        let secondReview:Record<string,unknown> = {status:"unavailable",model:"not_run",summary:"Second review unavailable.",disagreements:[]};
+        try { secondReview = await callOpenRouterRecheck(body, parsed as unknown as Record<string,unknown>); log(admin, String(secondReview.model || "not_run"), "mark_recheck", String(secondReview.status || "error")); }
+        catch (reviewError) { secondReview = {status:"unavailable",model:"not_run",summary:String((reviewError as Error)?.message || reviewError).slice(0,700),disagreements:[]}; log(admin,"not_run","mark_recheck","error"); }
         return json({ result: parsed, modelUsed, teacherSources: false, secondReview });
       }
       return json({ answer: text, modelUsed, teacherSources: !!tk });
