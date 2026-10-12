@@ -76,3 +76,12 @@
  .syllabus-wrap{height:calc(100dvh - 150px);min-height:0}
  .sy-composer-outer{padding:6px 0 6px}
 }
+
+
+/* Make the Syllabus composer fixed at the bottom of the viewport */
+.sy-composer-outer{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:min(calc(100% - 56px),1000px);z-index:1000;background:var(--bg,#f6f8fb);border-top:1px solid var(--border,#e5e7eb);box-sizing:border-box;padding:8px 0 12px}
+.syllabus-wrap{padding-bottom:90px;box-sizing:border-box}
+@media (max-width:699px){
+ .sy-composer-outer{width:calc(100% - 28px);padding:6px 0 8px}
+ .syllabus-wrap{padding-bottom:82px}
+}
