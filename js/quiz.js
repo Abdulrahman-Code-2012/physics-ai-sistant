@@ -98,7 +98,7 @@ function quizFinish(){
 function startQuiz(){
   const paper=document.querySelector('#quizPaper').value,topic=document.querySelector('#quizTopic').value,count=Number(document.querySelector('#quizCount').value);
   let pool=QUESTION_BANK.filter(q=>(paper==='mix'||q.paper===paper)&&(topic==='all'||q.topic===topic));
-  pool=quizShuffle(pool);if(pool.length<count){const extra=quizShuffle(QUESTION_BANK.filter(q=>(paper==='mix'||q.paper===paper))).filter(q=>!pool.some(x=>x.id===q.id));pool=pool.concat(extra)}
+  pool=quizShuffle(pool);if(pool.length<count){const extra=quizShuffle(QUESTION_BANK.filter(q=>(paper==='mix'||q.paper===paper)&&(topic==='all'||q.topic===topic))).filter(q=>!pool.some(x=>x.id===q.id));pool=pool.concat(extra)}
   quizState={questions:pool.slice(0,Math.min(count,pool.length)),index:0,score:0,answers:[],paper,topic,count,startedAt:new Date().toISOString()};
   document.querySelector('#quizSetup').classList.add('hidden');document.querySelector('#quizRun').classList.remove('hidden');quizRenderQuestion();
 }
