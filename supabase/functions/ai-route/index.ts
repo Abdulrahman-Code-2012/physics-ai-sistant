@@ -159,7 +159,7 @@ async function callNvidiaOrGrok(body: Record<string,unknown>, mode: string, prov
   const content:unknown=parts.length === 1 && parts[0].type === "text" ? parts[0].text : parts;
   const messages=[{role:"system",content:system},...history,{role:"user",content}];
   const model=provider === "nvidia"
-    ? (hasImage ? (Deno.env.get("NVIDIA_VISION_MODEL") || "nvidia/nemotron-nano-12b-v2-vl") : (Deno.env.get("NVIDIA_MODEL") || "nvidia/nemotron-3.5-lightning-30b-a3b"))
+    ? (hasImage ? (Deno.env.get("NVIDIA_VISION_MODEL") || "nvidia/nemotron-nano-12b-v2-vl") : "nvidia/nemotron-3.5-lightning-30b-a3b")
     : (Deno.env.get("XAI_MODEL") || "grok-3-mini");
   const endpoint=provider === "nvidia" ? "https://integrate.api.nvidia.com/v1/chat/completions" : "https://api.x.ai/v1/chat/completions";
   const payload:Record<string,unknown>={model,messages,temperature:mode === "mark" || mode === "recheck" ? 0.1 : 0.4,max_tokens:mode === "mark" ? 8192 : mode === "recheck" ? 4096 : 4096};
