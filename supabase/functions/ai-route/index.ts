@@ -42,14 +42,14 @@ async function fetchBase64(url: string) {
 // ── OpenRouter free ───────────────────────────────────────────────────────────
 async function callOpenRouter(body: Record<string,unknown>, mode: string, hasImage: boolean) {
   if (!OPENROUTER_KEY) throw new Error("OPENROUTER_API_KEY not set. Free-only mode is active; no other AI provider will be called.");
-  const req = body as {question?:string,conversationHistory?:{role:string,content:string}[],answerText?:string,imageUrl?:string,pdfUrl?:string,audioUrl?:string,answerImageUrl?:string,answerPdfUrl?:string,markSchemeUrl?:string,markSchemeMimeType?:string};
+  const req = body as {question?:string,conversationHistory?:{role:string,content:string}[],answerText?:string,markSchemeText?:string,imageUrl?:string,pdfUrl?:string,audioUrl?:string,answerImageUrl?:string,answerPdfUrl?:string,markSchemeUrl?:string,markSchemeMimeType?:string};
   const hasPdf = !!(req.pdfUrl || req.answerPdfUrl || req.markSchemeUrl);
   const models = ["openrouter/free"];
   const system = mode === "mark" ? SYSTEM_MARKER : mode === "recheck" ? SYSTEM_RECHECK : SYSTEM_TUTOR;
   const history = mode === "tutor" ? (req.conversationHistory || []).map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content })) : [];
   const parts: Record<string,unknown>[] = [];
   const userText = mode === "mark"
-    ? ("Mark the student's work against the official mark scheme only. Student typed answer: " + (req.answerText || "(see attached answer file)") + ". Compare the answer with the supplied official mark scheme. Return the required JSON only.")
+    ? ("Mark the student's work against the official mark scheme only. Student answer:\n" + (req.answerText || "(see attached answer file)") + "\nOfficial mark scheme:\n" + (req.markSchemeText || "(see attached mark scheme file)") + "\nCompare the answer with the supplied official mark scheme. Return the required JSON only.")
     : (req.question || "");
   if (userText) parts.push({type:"text",text:userText});
   async function addFile(url:string|undefined, filename:string, mimeOverride?:string) {
@@ -61,9 +61,11 @@ async function callOpenRouter(body: Record<string,unknown>, mode: string, hasIma
     else parts.push({type:"text",text:"[Attachment "+filename+" has unsupported media type "+mime+"]"});
   }
   if (mode === "mark" || mode === "recheck") {
-    await addFile(req.answerPdfUrl,"student-submission.pdf","application/pdf");
-    await addFile(req.answerImageUrl,"student-answer-image");
-    await addFile(req.markSchemeUrl,"official-mark-scheme.pdf",req.markSchemeMimeType || "application/pdf");
+    if (!req.answerText) {
+      await addFile(req.answerPdfUrl,"student-submission.pdf","application/pdf");
+      await addFile(req.answerImageUrl,"student-answer-image");
+    }
+    if (!req.markSchemeText) await addFile(req.markSchemeUrl,"official-mark-scheme.pdf",req.markSchemeMimeType || "application/pdf");
   } else {
     await addFile(req.imageUrl,"student-question-image");
     await addFile(req.pdfUrl,"student-question.pdf","application/pdf");
@@ -97,11 +99,11 @@ async function callOpenRouter(body: Record<string,unknown>, mode: string, hasIma
 // Gemini is the primary multimodal provider. NVIDIA and xAI are secondary
 // OpenAI-compatible providers; OpenRouter remains the final compatibility fallback.
 function requestParts(body: Record<string,unknown>, mode: string) {
-  const req = body as {question?:string,conversationHistory?:{role:string,content:string}[],answerText?:string,imageUrl?:string,pdfUrl?:string,audioUrl?:string,answerImageUrl?:string,answerPdfUrl?:string,markSchemeUrl?:string,markSchemeMimeType?:string};
+  const req = body as {question?:string,conversationHistory?:{role:string,content:string}[],answerText?:string,markSchemeText?:string,imageUrl?:string,pdfUrl?:string,audioUrl?:string,answerImageUrl?:string,answerPdfUrl?:string,markSchemeUrl?:string,markSchemeMimeType?:string};
   const system = mode === "mark" ? SYSTEM_MARKER : mode === "recheck" ? SYSTEM_RECHECK : SYSTEM_TUTOR;
   const history = mode === "tutor" ? (req.conversationHistory || []).map(m => ({role:m.role === "assistant" ? "assistant" : "user", content:m.content})) : [];
   const userText = mode === "mark"
-    ? ("Mark the student's work against the official mark scheme only. Student typed answer: " + (req.answerText || "(see attached answer file)") + ". Compare the answer with the supplied official mark scheme. Return the required JSON only.")
+    ? ("Mark the student's work against the official mark scheme only. Student answer:\n" + (req.answerText || "(see attached answer file)") + "\nOfficial mark scheme:\n" + (req.markSchemeText || "(see attached mark scheme file)") + "\nCompare the answer with the supplied official mark scheme. Return the required JSON only.")
     : (req.question || "");
   return {req, system, history, userText};
 }
@@ -118,9 +120,11 @@ async function callGemini(body: Record<string,unknown>, mode: string) {
     else parts.push({text:`[Attachment ${filename} has unsupported media type ${mime}]`});
   }
   if (mode === "mark" || mode === "recheck") {
-    await addFile(req.answerPdfUrl,"student-submission.pdf","application/pdf");
-    await addFile(req.answerImageUrl,"student-answer-image");
-    await addFile(req.markSchemeUrl,"official-mark-scheme.pdf",req.markSchemeMimeType || "application/pdf");
+    if (!req.answerText) {
+      await addFile(req.answerPdfUrl,"student-submission.pdf","application/pdf");
+      await addFile(req.answerImageUrl,"student-answer-image");
+    }
+    if (!req.markSchemeText) await addFile(req.markSchemeUrl,"official-mark-scheme.pdf",req.markSchemeMimeType || "application/pdf");
   } else {
     await addFile(req.imageUrl,"student-question-image");
     await addFile(req.pdfUrl,"student-question.pdf","application/pdf");
@@ -155,7 +159,7 @@ async function callNvidiaOrGrok(body: Record<string,unknown>, mode: string, prov
   const content:unknown=parts.length === 1 && parts[0].type === "text" ? parts[0].text : parts;
   const messages=[{role:"system",content:system},...history,{role:"user",content}];
   const model=provider === "nvidia"
-    ? (hasImage ? (Deno.env.get("NVIDIA_VISION_MODEL") || "nvidia/nemotron-nano-12b-v2-vl") : (Deno.env.get("NVIDIA_MODEL") || "nvidia/nemotron-3-nano-30b-a3b"))
+    ? (hasImage ? (Deno.env.get("NVIDIA_VISION_MODEL") || "nvidia/nemotron-nano-12b-v2-vl") : (Deno.env.get("NVIDIA_MODEL") || "nvidia/nemotron-3.5-lightning-30b-a3b"))
     : (Deno.env.get("XAI_MODEL") || "grok-3-mini");
   const endpoint=provider === "nvidia" ? "https://integrate.api.nvidia.com/v1/chat/completions" : "https://api.x.ai/v1/chat/completions";
   const payload:Record<string,unknown>={model,messages,temperature:mode === "mark" || mode === "recheck" ? 0.1 : 0.4,max_tokens:mode === "mark" ? 8192 : mode === "recheck" ? 4096 : 4096};
@@ -171,17 +175,15 @@ async function callNvidiaOrGrok(body: Record<string,unknown>, mode: string, prov
 async function route(body: Record<string,unknown>, mode: string) {
   const hasPdf=!!(body.pdfUrl || body.answerPdfUrl || body.markSchemeUrl);
   const attempts:Array<[string,()=>Promise<{text:string,modelUsed:string}>]> = [];
-  if (GEMINI_API_KEY) attempts.push(["Gemini",()=>callGemini(body,mode)]);
-  if (!hasPdf && NVIDIA_API_KEY) attempts.push(["NVIDIA",()=>callNvidiaOrGrok(body,mode,"nvidia")]);
-  if (!hasPdf && XAI_API_KEY) attempts.push(["Grok",()=>callNvidiaOrGrok(body,mode,"grok")]);
-  if (OPENROUTER_KEY) attempts.push(["OpenRouter",()=>callOpenRouter(body,mode,!!(body.imageUrl || body.answerImageUrl))]);
-  if (!attempts.length) throw new Error("No AI provider key is configured. Add GEMINI_API_KEY, NVIDIA_API_KEY, XAI_API_KEY, or OPENROUTER_API_KEY in Supabase Edge Function secrets.");
+  if (!hasPdf && !body.imageUrl && !body.answerImageUrl && NVIDIA_API_KEY) attempts.push(["NVIDIA free text endpoint",()=>callNvidiaOrGrok(body,mode,"nvidia")]);
+  if (OPENROUTER_KEY) attempts.push(["OpenRouter free router",()=>callOpenRouter(body,mode,!!(body.imageUrl || body.answerImageUrl))]);
+  if (!attempts.length) throw new Error("No usable free AI route is configured. OCR text can use NVIDIA_MODEL; OpenRouter is the free-only backup for image/PDF fallback.");
   const errors:string[]=[];
   for (const [name,call] of attempts) {
     try { return await call(); }
     catch (e) { const message=String((e as Error)?.message||e); errors.push(name+": "+message.slice(0,220)); }
   }
-  throw new Error("All configured AI providers failed: "+errors.join(" | "));
+  throw new Error("All configured free AI providers failed: "+errors.join(" | "));
 }
 
 async function callOpenRouterRecheck(body: Record<string,unknown>, primaryResult: Record<string,unknown>) {
