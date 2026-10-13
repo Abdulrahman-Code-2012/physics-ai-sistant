@@ -1,5 +1,6 @@
 let quizOnFinish = null;
 let quizOnQuestion = null;
+let quizGetQuota = null;
 let quizAnswerPending = false;
 
 const QUIZ_TOPICS = [
@@ -51,7 +52,7 @@ function quizPage(){
   return `<main class="wrap quiz-page"><div class="pagehead"><div><div class="eyebrow">Physics AI-sistant</div><h1>Quiz Maker</h1><p class="hero p">Build a Cambridge IGCSE Physics-style quiz by paper and topic.</p></div><button class="back" data-page="home">← Dashboard</button></div>
   <section id="quizSetup" class="quiz-setup panel"><div class="quiz-intro"><span class="quiz-badge">NEW</span><h2>Make your quiz</h2><p>Choose Paper 2, Paper 4, or mix both. Then focus on one topic or the whole syllabus.</p></div>
   <div class="quiz-controls"><label><span>Paper</span><select id="quizPaper"><option value="2">Paper 2 · Multiple choice</option><option value="4">Paper 4 · Structured style</option><option value="mix" selected>Mix Paper 2 + Paper 4</option></select></label><label><span>Topic</span><select id="quizTopic">${topicOptions}</select></label><label><span>Questions</span><select id="quizCount"><option>5</option><option selected>10</option><option>15</option><option>20</option></select></label></div>
-  <button class="primary quiz-start" id="startQuiz">Start quiz →</button></section><section id="quizRun" class="quiz-run hidden"></section></main>`;
+  <button class="primary quiz-start" id="startQuiz">Start quiz →</button><p id=\"quizDailyLimitNote\" class=\"quiz-daily-note\" role=\"status\"></p></section><section id="quizRun" class="quiz-run hidden"></section></main>`;
 }
 
 function quizShuffle(a){return [...a].sort(()=>Math.random()-0.5)}
@@ -61,7 +62,7 @@ function quizRenderQuestion(){
   const q=quizState.questions[quizState.index];
   const pct=Math.round((quizState.index/quizState.questions.length)*100);
   const options=q.type==='mcq'?q.o.map((x,i)=>`<button class="quiz-option" data-answer="${i}"><span>${String.fromCharCode(65+i)}</span><b>${quizEscape(x)}</b></button>`).join(''):`<div class="quiz-number-answer"><input id="quizNumberInput" type="number" step="any" inputmode="decimal" placeholder="Enter your answer"><span>${q.q.includes('m/s²')?'m/s²':q.q.includes('kg m/s')?'kg m/s':q.q.includes('J/°C')?'J/°C':q.q.includes('J.')||q.q.includes('energy')?'J':q.q.includes('power')?'W':q.q.includes('current')?'A':q.q.includes('voltage')?'V':q.q.includes('force')?'N':' '}</span></div><button class="primary quiz-submit-number" id="submitNumber">Check answer</button>`;
-  document.querySelector('#quizRun').innerHTML=`<div class="quiz-top"><div><span class="quiz-kicker">${q.paper==='2'?'PAPER 2':'PAPER 4'} · ${quizEscape(QUIZ_TOPICS.find(x=>x[0]===q.topic)?.[1]||'Physics')}</span><h2>Question ${quizState.index+1} of ${quizState.questions.length}</h2></div><div class="quiz-score">${quizState.score} correct</div></div><div class="quiz-progress"><i style="width:${pct}%"></i></div><article class="quiz-card"><h3>${quizEscape(q.q)}</h3><div class="quiz-answer-area">${options}</div><div id="quizFeedback" class="quiz-feedback hidden"></div></article>`;
+  document.querySelector('#quizRun').innerHTML=`<div class="quiz-top"><div><span class="quiz-kicker">${q.paper==='2'?'PAPER 2':'PAPER 4'} · ${quizEscape(QUIZ_TOPICS.find(x=>x[0]===q.topic)?.[1]||'Physics')}</span><h2>Question ${quizState.index+1} of ${quizState.questions.length}</h2></div><div class="quiz-score">${quizState.score} correct</div></div>${quizState.dailyLimitNotice?`<p class=\"quiz-daily-note\">${quizEscape(quizState.dailyLimitNotice)}</p>`:''}<div class="quiz-progress"><i style="width:${pct}%"></i></div><article class="quiz-card"><h3>${quizEscape(q.q)}</h3><div class="quiz-answer-area">${options}</div><div id="quizFeedback" class="quiz-feedback hidden"></div></article>`;
   bindQuizQuestion(q);
 }
 function bindQuizQuestion(q){
@@ -103,17 +104,24 @@ function quizFinish(){
  document.querySelector('#retryQuiz').onclick=()=>startQuiz();document.querySelector('#changeQuiz').onclick=()=>{document.querySelector('#quizRun').classList.add('hidden');document.querySelector('#quizSetup').classList.remove('hidden')};
 }
 
-function startQuiz(){
-  const paper=document.querySelector('#quizPaper').value,topic=document.querySelector('#quizTopic').value,count=Number(document.querySelector('#quizCount').value);
+async function startQuiz(){
+  const paper=document.querySelector('#quizPaper').value,topic=document.querySelector('#quizTopic').value,requestedCount=Number(document.querySelector('#quizCount').value);
+  const note=document.querySelector('#quizDailyLimitNote');if(note)note.textContent='Checking your daily allowance…';
+  let remaining=requestedCount;
+  if(quizGetQuota){try{remaining=await quizGetQuota()}catch(error){if(note)note.textContent=error?.message||'Could not check your daily allowance. Please try again.';return}}
+  if(remaining<=0){if(note)note.textContent='You have used all 20 questions for today. Your allowance resets at midnight Riyadh time.';return}
+  const count=Math.min(requestedCount,remaining);if(note)note.textContent=count<requestedCount?`You have ${remaining} question${remaining===1?'':'s'} left today, so this quiz will contain ${count}.`:'';
   let pool=QUESTION_BANK.filter(q=>(paper==='mix'||q.paper===paper)&&(topic==='all'||q.topic===topic));
   pool=quizShuffle(pool);if(pool.length<count){const extra=quizShuffle(QUESTION_BANK.filter(q=>(paper==='mix'||q.paper===paper)&&(topic==='all'||q.topic===topic))).filter(q=>!pool.some(x=>x.id===q.id));pool=pool.concat(extra)}
-  quizState={questions:pool.slice(0,Math.min(count,pool.length)),index:0,score:0,answers:[],paper,topic,count,startedAt:new Date().toISOString()};
+  const actualQuestions=pool.slice(0,Math.min(count,pool.length));
+  quizState={questions:actualQuestions,index:0,score:0,answers:[],paper,topic,count:actualQuestions.length,startedAt:new Date().toISOString(),dailyLimitNotice:count<requestedCount?`This quiz is limited to ${actualQuestions.length} question${actualQuestions.length===1?'':'s'} because of your remaining daily allowance.`:''};
   document.querySelector('#quizSetup').classList.add('hidden');document.querySelector('#quizRun').classList.remove('hidden');quizRenderQuestion();
 }
 
-export function initQuiz(onFinish,onQuestion){
+export function initQuiz(onFinish,onQuestion,getQuota){
   quizOnFinish = typeof onFinish === 'function' ? onFinish : null;
   quizOnQuestion = typeof onQuestion === 'function' ? onQuestion : null;
+  quizGetQuota = typeof getQuota === 'function' ? getQuota : null;
   const start=document.querySelector('#startQuiz');if(start)start.onclick=startQuiz;
 }
 export { quizPage };
