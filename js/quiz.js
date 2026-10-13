@@ -1,4 +1,6 @@
 let quizOnFinish = null;
+let quizOnQuestion = null;
+let quizAnswerPending = false;
 
 const QUIZ_TOPICS = [
   ['all','All topics'],['forces','Forces and motion'],['energy','Energy'],['thermal','Thermal physics'],['waves','Waves'],['electricity','Electricity'],['magnetism','Magnetism'],['radioactivity','Radioactivity'],['space','Space physics']
@@ -66,7 +68,10 @@ function bindQuizQuestion(q){
   if(q.type==='mcq')document.querySelectorAll('.quiz-option').forEach(b=>b.onclick=()=>quizAnswer(Number(b.dataset.answer),b));
   else document.querySelector('#submitNumber').onclick=()=>{const v=Number(document.querySelector('#quizNumberInput').value);if(!Number.isFinite(v))return;quizAnswer(v,document.querySelector('#submitNumber'))};
 }
-function quizAnswer(value,button){
+async function quizAnswer(value,button){
+  if(quizAnswerPending)return;quizAnswerPending=true;if(button)button.disabled=true;
+  try{if(quizOnQuestion)await quizOnQuestion();}
+  catch(error){const f=document.querySelector('#quizFeedback');if(f){f.classList.remove('hidden');f.innerHTML=`<strong>Daily question limit</strong><p>${quizEscape(error?.message||'Could not verify your daily allowance.')}</p><button class="secondary quiz-limit-home" type="button">Return to overview</button>`;f.querySelector('.quiz-limit-home')?.addEventListener('click',()=>document.querySelector('[data-page="home"]')?.click())}if(button)button.disabled=false;quizAnswerPending=false;return;}
   const q=quizState.questions[quizState.index];let correct=false;
   if(q.type==='mcq')correct=value===q.a;else correct=Math.abs(value-q.a)<=Math.max(q.t||0.01,Math.abs(q.a)*0.005);
   if(correct)quizState.score++;
@@ -74,7 +79,7 @@ function quizAnswer(value,button){
   document.querySelectorAll('.quiz-option').forEach(b=>{b.disabled=true;if(q.type==='mcq'){const n=Number(b.dataset.answer);if(n===q.a)b.classList.add('correct');if(n===value&&!correct)b.classList.add('wrong')}});
   if(button)button.disabled=true;
   const f=document.querySelector('#quizFeedback');f.classList.remove('hidden');f.innerHTML=`<strong>${correct?'Correct!':'Not quite.'}</strong> ${correct?'Nice work.':'The correct answer is '+quizEscape(q.type==='mcq'?q.o[q.a]:quizFormatNumber(q.a))+'.'}`+`<button class="secondary quiz-next">${quizState.index+1===quizState.questions.length?'See result':'Next question →'}</button>`;
-  f.querySelector('.quiz-next').onclick=()=>{if(quizState.index+1===quizState.questions.length)quizFinish();else{quizState.index++;quizRenderQuestion()}};
+  f.querySelector('.quiz-next').onclick=()=>{if(quizState.index+1===quizState.questions.length)quizFinish();else{quizState.index++;quizRenderQuestion()}};quizAnswerPending=false;
 }
 function quizDownload(filename,content,type){const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 function quizCsvCell(value){return '"'+String(value??'').replace(/"/g,'""')+'"'}
@@ -106,8 +111,9 @@ function startQuiz(){
   document.querySelector('#quizSetup').classList.add('hidden');document.querySelector('#quizRun').classList.remove('hidden');quizRenderQuestion();
 }
 
-export function initQuiz(onFinish){
+export function initQuiz(onFinish,onQuestion){
   quizOnFinish = typeof onFinish === 'function' ? onFinish : null;
+  quizOnQuestion = typeof onQuestion === 'function' ? onQuestion : null;
   const start=document.querySelector('#startQuiz');if(start)start.onclick=startQuiz;
 }
 export { quizPage };
