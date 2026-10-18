@@ -29,3 +29,32 @@ export async function extractPhysicsText(file,onProgress=()=>{}){
  }
  return pages.join('\n\n').trim();
 }
+
+
+// Render every PDF page to a separate compressed image for vision-capable models.
+// Text extraction remains available separately; page images preserve diagrams, graphs and handwriting.
+export async function renderPdfPagesToImages(file,onProgress=()=>{}){
+ if(!file||((file.type||'')!=='application/pdf'&&!/\.pdf$/i.test(file.name||'')))throw new Error('A PDF file is required for page-image conversion.');
+ const pdfjs=await getPdfJs();
+ const pdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;
+ const out=[];
+ const base=(file.name||'paper.pdf').replace(/\.pdf$/i,'').replace(/[^a-z0-9_-]+/gi,'-').slice(0,60)||'paper';
+ try{
+  for(let i=1;i<=pdf.numPages;i++){
+   onProgress('Rendering PDF page '+i+' of '+pdf.numPages+' as an image…');
+   const page=await pdf.getPage(i),unit=page.getViewport({scale:1});
+   const scale=Math.min(1.6,1500/Math.max(unit.width,unit.height));
+   const viewport=page.getViewport({scale}),canvas=document.createElement('canvas');
+   canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+   const ctx=canvas.getContext('2d',{alpha:false});
+   if(!ctx)throw new Error('Could not create the canvas for PDF page '+i+'.');
+   ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);
+   await page.render({canvasContext:ctx,viewport}).promise;
+   const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.82));
+   if(!blob)throw new Error('Could not convert PDF page '+i+' to an image.');
+   out.push(new File([blob],base+'-page-'+String(i).padStart(3,'0')+'.jpg',{type:'image/jpeg',lastModified:Date.now()}));
+   canvas.width=0;canvas.height=0;page.cleanup();
+  }
+  return out;
+ }finally{try{await pdf.destroy()}catch{}}
+}
